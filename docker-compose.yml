@@ -1,0 +1,34 @@
+...
+  runalyze:
+    image: ${REGISTRY}/runalyze:${TAG_runalyze}
+    build:
+      context: ./runalyze
+      args:
+      - CONF_REGISTRY=${REGISTRY}
+      - CONF_TAG=${TAG_php}
+    environment:
+      ENV_RUNALYZE_DB_NAME: "${RUNALYZE_DB_NAME}"
+      ENV_RUNALYZE_DB_USER: "${RUNALYZE_DB_USER}"
+      ENV_RUNALYZE_DB_PW: "${RUNALYZE_DB_PW}"
+      ENV_RUNALYZE_SECRET: "${RUNALYZE_SECRET}"
+      ENV_MAIL_HOST: "${MAIL_HOST}"
+      ENV_MAIL_PORT: "${MAIL_PORT}"
+      ENV_MAIL_USER: "${MAIL_USER}"
+      ENV_MAIL_USER_PW: "${MAIL_USER_PW}"
+      ENV_MAIL_LOCALNAME: "'${HOST_NAME}'"
+    volumes:
+    - ${VOL_MAIL_MSMTPRC}:/etc/msmtprc:ro
+    - ${VOL_MAIL_ALIASES}:/etc/aliases:ro
+    - ${VOL_CERT_PUB_DIR}/${CERT_NAME}.crt:/etc/nginx/ssl/certificate.crt:ro
+    - ${VOL_CERT_PRI_DIR}/${CERT_NAME}.key:/etc/nginx/ssl/certificate_priv.key:ro
+    - ${VOL_LOG_ROOT}/runalyze:/var/log/runalyze
+    - ${VOL_LOG_ROOT}/runalyze:/var/log/nginx
+    # hoehendaten and imports
+    - ${VOL_RUNALYZE_DATA_ROOT}/srtm/tif:/app/runalyze/data/srtm:ro
+    - ${VOL_RUNALYZE_DATA_ROOT}/activityimport:/app/runalyze_import
+    depends_on:
+    - base
+    - mysql
+    network_mode: "${NETWORK_MODE}"
+    logging: *default-logging
+...
