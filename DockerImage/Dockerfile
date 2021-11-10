@@ -14,7 +14,7 @@ ARG CONF_APP_ROOT=/app/runalyze
 # - the best method to provide the SRTM data is via a docker volume to '$CONF_APP_ROOT/data/srtm'
 
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends nginx php7.3-fpm \
+	&& apt-get install -y --no-install-recommends bsdtar nginx php7.3-fpm \
 	&& apt-get install -y --no-install-recommends php7.3-intl php7.3-mysql php7.3-mbstring php7.3-xml php7.3-curl php7.3-zip php7.3-gettext \
 													# sqlite for timezones
 													php7.3-sqlite3 sqlite3 libsqlite3-mod-spatialite \
@@ -69,11 +69,10 @@ WORKDIR /app
 
 USER $CONF_USER
 
-# download runalyze and extract it
-RUN echo "Downloading..." && curl -L -s https://github.com/codeproducer198/Runalyze/archive/master.zip --output /app/master.zip \
-	&& echo "Unziping..." && unzip -q /app/master.zip -d /app \
-	&& echo "Move..." && mv /app/Runalyze-master $CONF_APP_ROOT \
-	&& echo "Remove..." && rm /app/master.zip
+# download runalyze and extract it (strip the root folder - it contains the branch name)
+RUN echo "Downloading & extract..." \
+    && mkdir -p $CONF_APP_ROOT \
+    && curl -L -s https://github.com/codeproducer198/Runalyze/archive/master.zip | bsdtar --strip-components=1 -xf - -C $CONF_APP_ROOT --exclude "./tests"
 
 # copy and protect the configuration file
 COPY --chown=$CONF_USER:$CONF_USER config/config.yml $CONF_APP_ROOT/data/config.yml
