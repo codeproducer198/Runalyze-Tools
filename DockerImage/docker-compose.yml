@@ -5,12 +5,15 @@
       context: ./runalyze
       args:
       - CONF_REGISTRY=${REGISTRY}
-      - CONF_TAG=${TAG_php}
+      - CONF_TAG=${TAG_runalyze_base:?err}
     environment:
       ENV_RUNALYZE_DB_NAME: "${RUNALYZE_DB_NAME}"
       ENV_RUNALYZE_DB_USER: "${RUNALYZE_DB_USER}"
       ENV_RUNALYZE_DB_PW: "${RUNALYZE_DB_PW}"
       ENV_RUNALYZE_SECRET: "${RUNALYZE_SECRET}"
+      ENV_HTTP_PROXY: "${HTTP_PROXY}"
+      ENV_WEATHER_OPENWMAP_KEY: "${WEATHER_OPENWMAP_KEY}"
+      ENV_WEATHER_METEOSTAT_KEY: "${WEATHER_METEOSTAT_KEY}"
       ENV_MAIL_HOST: "${MAIL_HOST}"
       ENV_MAIL_PORT: "${MAIL_PORT}"
       ENV_MAIL_USER: "${MAIL_USER}"
@@ -27,7 +30,6 @@
     - ${VOL_RUNALYZE_DATA_ROOT}/srtm/tif:/app/runalyze/data/srtm:ro
     - ${VOL_RUNALYZE_DATA_ROOT}/activityimport:/app/runalyze_import
     depends_on:
-    - base
     - mysql
     network_mode: "${NETWORK_MODE}"
     logging: *default-logging

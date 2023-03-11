@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 ARG CONF_REGISTRY
 ARG CONF_TAG
 FROM ${CONF_REGISTRY}/base:${CONF_TAG}
@@ -14,10 +16,10 @@ ARG CONF_APP_ROOT=/app/runalyze
 # - the best method to provide the SRTM data is via a docker volume to '$CONF_APP_ROOT/data/srtm'
 
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends bsdtar nginx php7.3-fpm \
-	&& apt-get install -y --no-install-recommends php7.3-intl php7.3-mysql php7.3-mbstring php7.3-xml php7.3-curl php7.3-zip php7.3-gettext \
+	&& apt-get install -y --no-install-recommends libarchive-tools nginx php7.4-fpm \
+	&& apt-get install -y --no-install-recommends php7.4-intl php7.4-mysql php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-gettext php7.4-bcmath \
 													# sqlite for timezones
-													php7.3-sqlite3 sqlite3 libsqlite3-mod-spatialite \
+													php7.4-sqlite3 sqlite3 libsqlite3-mod-spatialite \
 	&& apt-get install -y --no-install-recommends perl gettext libxml2 python3 python3-pip python3-setuptools inkscape \
 	&& apt-get install -y --no-install-recommends librsvg2-bin librsvg2-common \
 	&& apt-get install -y --no-install-recommends locales && echo "de_DE.UTF-8 UTF-8" >> /etc/locale.gen && locale-gen \
@@ -26,9 +28,9 @@ RUN apt-get update \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # nginx site
-COPY config/nginx/ /etc/nginx/
-
-COPY runit/ /etc/service/
+COPY --chmod="700" runit/ /etc/service/
+COPY --chmod="644" config/nginx/ /etc/nginx/
+COPY --chmod="640" logrotate.d /etc/logrotate.d
 
 # nginx and php configuration
 RUN phpdismod mysqli \
@@ -39,22 +41,26 @@ RUN phpdismod mysqli \
 	&& sed -E -i 's|(^.*)#.*server_tokens.*;$|\1server_tokens off;|' 					/etc/nginx/nginx.conf \
 	&& sed -E -i 's|(^.*worker_processes\s+)(.*)(\s*;)$|\12\3|' 						/etc/nginx/nginx.conf \
 	# symlink to start php without version
-	&& ln -s /usr/sbin/php-fpm7.3 /usr/sbin/php-fpm \
+	&& ln -s /usr/sbin/php-fpm7.4 /usr/sbin/php-fpm \
 	# aus irgendwelchen gruenden ist das verzeichnis nicht von anfang an da - hier also anlegen
 	&& mkdir -p /run/php/ \
 	# ich habe es nicht vernuenftig hinbekommen, die dateien direkt ueber ein volume zu mounten
-	&& sed -E -i 's#^error_log\s+=.*$#error_log = /var/log/runalyze/php-fpm.log#' 		/etc/php/7.3/fpm/php-fpm.conf \
-	&& sed -E -i 's#^/var/log/php7.3-fpm.log#/var/log/runalyze/php-fpm.log#' 			/etc/logrotate.d/php7.3-fpm \
-	&& sed -E -i 's#^listen\s+=.*$#listen = /var/run/php/php-fpm.sock#' 				/etc/php/7.3/fpm/pool.d/www.conf \
+	&& sed -E -i 's#^error_log\s+=.*$#error_log = /var/log/runalyze/php-fpm.log#' 		/etc/php/7.4/fpm/php-fpm.conf \
+	&& sed -E -i 's#^/var/log/php7.4-fpm.log#/var/log/runalyze/php-fpm.log#' 			/etc/logrotate.d/php7.4-fpm \
+	&& sed -E -i 's#^listen\s+=.*$#listen = /var/run/php/php-fpm.sock#' 				/etc/php/7.4/fpm/pool.d/www.conf \
 	# optimierung php-fpm auf speicherverbrauch
-	&& sed -E -i 's#^pm\s+=.*$#pm = ondemand#' 											/etc/php/7.3/fpm/pool.d/www.conf \
-	&& sed -E -i 's#^;*pm.process_idle_timeout\s+=.*$#pm.process_idle_timeout = 25s#' 	/etc/php/7.3/fpm/pool.d/www.conf \
+	&& sed -E -i 's#^pm\s+=.*$#pm = ondemand#' 											/etc/php/7.4/fpm/pool.d/www.conf \
+	&& sed -E -i 's#^;*pm.process_idle_timeout\s+=.*$#pm.process_idle_timeout = 25s#' 	/etc/php/7.4/fpm/pool.d/www.conf \
 	# increase execition timeout (see also value in nginx config)
-	&& sed -E -i 's#^max_execution_time\s+=.*$#max_execution_time = 300#' 				/etc/php/7.3/fpm/php.ini \
+	&& sed -E -i 's#^max_execution_time\s+=.*$#max_execution_time = 900#' 				/etc/php/7.4/fpm/php.ini \
 	# set memory (128M is default)
-	&& sed -E -i 's#^memory_limit\s+=.*$#memory_limit = 128M#'			 				/etc/php/7.3/fpm/php.ini \
+	&& sed -E -i 's#^memory_limit\s+=.*$#memory_limit = 128M#'			 				/etc/php/7.4/fpm/php.ini \
+	# set file upload limits to 50 files
+	&& sed -E -i 's#^post_max_size\s+=.*$#post_max_size = 150M#'		 				/etc/php/7.4/fpm/php.ini \
+	&& sed -E -i 's#^upload_max_filesize\s+=.*$#upload_max_filesize = 30M#' 			/etc/php/7.4/fpm/php.ini \
+	&& sed -E -i 's#^max_file_uploads\s+=.*$#max_file_uploads = 50M#'	 				/etc/php/7.4/fpm/php.ini \
 	# change to running user from www-data to dockusr
-	&& sed -E -i 's#^((user|group|listen\.owner|listen\.group)\s+=).*$#\1'$CONF_USER'#'	/etc/php/7.3/fpm/pool.d/www.conf \
+	&& sed -E -i 's#^((user|group|listen\.owner|listen\.group)\s+=).*$#\1'$CONF_USER'#'	/etc/php/7.4/fpm/pool.d/www.conf \
 	&& sed -E -i 's|(^.*user\s+)(.*)(\s*;)$|\1'$CONF_USER'\3|' 							/etc/nginx/nginx.conf \
 	# change run user of queue start
 	&& sed    -i 's#${RUN_USER}#'$CONF_USER'#' 											/etc/service/queue/run
@@ -63,7 +69,7 @@ RUN phpdismod mysqli \
 RUN	mkdir /app \
 	&& chown -R $CONF_USER:$CONF_USER -R /app \
 	# add queue start as cron (job is started and stopped itself)
-	&& echo "# runalyze batch/queue processing\n* */4 * * * root sv start queue > /dev/null" > /etc/cron.d/runalyzequeue && chmod 600 /etc/cron.d/runalyzequeue
+	&& echo "# runalyze batch/queue processing\n15 */4 * * * root sv start queue > /dev/null" > /etc/cron.d/runalyzequeue && chmod 600 /etc/cron.d/runalyzequeue
 
 WORKDIR /app
 
@@ -75,10 +81,9 @@ RUN echo "Downloading & extract..." \
     && curl -L -s https://github.com/codeproducer198/Runalyze/archive/master.zip | bsdtar --strip-components=1 -xf - -C $CONF_APP_ROOT --exclude "./tests"
 
 # copy and protect the configuration file
-COPY --chown=$CONF_USER:$CONF_USER config/config.yml $CONF_APP_ROOT/data/config.yml
-RUN chmod 600 $CONF_APP_ROOT/data/config.yml
+COPY --chown=$CONF_USER:$CONF_USER --chmod="600" config/config.yml $CONF_APP_ROOT/data/config.yml
 
-COPY entrypoint.sh .
+COPY --chmod="700" entrypoint.sh .
 
 USER root
 
